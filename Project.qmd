@@ -1,0 +1,253 @@
+---
+title: "Crime Rate Analysis For New York and Los Angeles"
+author: "Ariana Nettevillle"
+format: pdf
+editor: visual
+self-contained: true 
+---
+
+
+#### Table of contents
+
+-   Introduction
+
+-   Primary Data
+
+-   Secondary Data
+
+-   Attributes
+
+-   Data Cleaning
+
+-   Homicides in Los Angeles from 1991 to 2003
+
+-   Top 5 crimes in each city
+
+-   Rates of Crimes
+
+-   Most crime
+
+-   Conclusion
+
+-   Sources
+
+#### Introduction
+
+This project contains information about crime in two distinct cities, New York City and Los Angeles. Both these cities receive high levels of crime on yearly basis. We will dive further into this topic by exploring and analyzing data obtained from an official government website to see how we can measure these levels of crime to answer our research questions. We will explore the following topics using data wrangling techniques and analysis:
+
+-   What are the leading crimes in these cities? (Crime occurs more often in cities with high populations like New York, Los Angeles, etc. Finding out what is the most common crime)
+
+-   Which city has the most crime? (This gives us a look into why a certain city has more crime than the other. Does the city with the highest population have more crime due to the fact that there’s more people or does it have to do with the police system?)
+
+-   What does the progression (rate) of the top crime look like between certain years by city? Is it decreasing, increasing, constant, etc.?
+
+#### Primary Data
+
+The LAPD crime data from the years 2000 to 2025 was found the data.gov website. This data set was collected by the Los Angeles Police Department's Records Management System. Each case in this data set are crimes reported in the city.
+
+```{r}
+#| echo: false
+#google's R style 
+library(tidyr)
+library(dplyr)
+library(rvest)
+library(ggplot2)
+```
+
+```{r}
+#| echo: false
+NYPD_data <- read.csv("~/Downloads/NYPD_Arrests_Data__Historic_.csv")
+LAPD_data <- read.csv("~/Downloads/Crime_Data_from_2020_to_Present (1).csv")
+```
+
+#### Secondary Data
+
+NYPD Data Set
+
+-   The NYPD contains crime information in New York City from 2006 to 2024. This data set was found on data.gov and the data was collected by the New York Police Department's Office of Management Analysis and Planning. Each case in this data set are crimes reported in the city.
+
+Los Angeles Homicides per year
+
+-   Homicides in Los Angeles was found on Wikipedia. This data set contains number of homicides in the city from 1991 to 2023.
+
+    ```{r}
+    #| echo: false
+    URL <- "https://en.wikipedia.org/wiki/Crime_in_Los_Angeles"
+    ListOfTables <- URL %>%
+      read_html() %>%
+      html_nodes(css = "table") %>%
+      html_table(fill = TRUE)
+    Homicide_data <- ListOfTables[[4]]
+      
+    ```
+
+#### Attributes
+
+For each data set, our main focus will be on the year and crime description.
+
+#### Data Cleaning
+
+Both NYPD and LAPD data sets format their dates as follows : mm/dd/yyyy. Los Angeles also includes time stamps along with the dates. To fix this, the functions substr and as.numeric will be used to only show the years these crimes occurred.
+
+##### New York:
+
+```{r}
+#| echo: false
+dates <- NYPD_data$ARREST_DATE
+NYPD_data$ARREST_DATE <- as.numeric(substr(dates, nchar(dates) - 4 + 1, nchar(dates)))
+NYPD_data %>%
+  head(3)
+```
+
+##### Los Angeles:
+
+```{r}
+#| echo: false
+dates_la <- LAPD_data$DATE.OCC
+LAPD_data$DATE.OCC <- as.numeric(substr(dates_la, 7 , 10))
+LAPD_data %>%
+  head(3)
+```
+
+As we can see from the two tables above, both data sets now only contain the year rather than the full date. This will allow for easier data wrangling and analysis.
+
+The Homicide data, obtained from Wikipedia contains footnotes for each of the murder counts. Similarly to the previous data set, substr and as.numeric will be used to only show the numbers without footnotes.
+
+```{r}
+#| echo: false
+murders <- Homicide_data$Murders
+Homicide_data$Murders <- as.numeric(substr(murders, 1 , nchar(murders)-4))
+Homicide_data
+```
+
+#### Homicides in Los Angeles from 1991 to 2003
+
+Using the homicide data from Wikipedia, we can determine the rate of murders in Los Angeles through 1991 to 2003 using a simple line plot.
+
+```{r}
+#| echo: false
+#| label: fig-homiciderate
+#| fig-cap: Homicide Rates
+#Homicides per year in Los Angeles
+ggplot(data = Homicide_data, aes(x= Year, y = Murders)) +
+  geom_line()
+```
+
+Using our homicide data, we can in @fig-homiciderate a steady decline in homicides from 1992 to 1999 with a small increase from 2000 to 2002. Overall, the number of homicides has decreased significantly from the year 1991.
+
+#### Top 5 crimes in each city
+
+To determine the top crimes in both New York and Los Angeles, we can apply data wrangling techniques to group each crime and count the total number of times that specific crime appears throughout the entire data set. For this project, we will only look at the top 5 crimes.
+
+```{r}
+#| echo: false
+#| tbl-cap: Top 5 crimes in Los Angeles
+LAPD_data_totalCrimes <- LAPD_data %>%
+  group_by(Crm.Cd.Desc)%>%
+  summarise(Total = n())%>%
+  arrange(desc(Total))
+LAPD_data_totalCrimes %>%
+  head(5)
+```
+
+According the table, The Los Angeles police department reports that top 5 crimes in the city from the years 2020 to 2023 are Vehicle robberies, Battery, Burglary, Identity theft and vandalism.
+
+```{r}
+#| echo: false
+#| tbl-cap: Top 5 crimes in New York
+NYPD_data_totalCrimes <- NYPD_data %>%
+  group_by(OFNS_DESC) %>%
+  summarise(Total= n())%>%
+  arrange(desc(Total))
+NYPD_data_totalCrimes %>%
+  head(5)
+```
+
+According to the table, The New York Police department reports that the top 5 crimes in the city from the years 2021 to 2023 are Drugs, Assault, Other offenses related to theft, Petit Larceny and Felony Assault.
+
+We can see that both cities have some form of assault and theft as some of their top leading crimes.
+
+#### Rates of Crimes
+
+To determine the rate of crime over the years 2020 to 2024 we will first have to create a new data frame for each state with the same column names and same years. Since New York includes data dating back to 2006, we must filter out the years that are not included in the Los Angeles data set. Furthermore, we can reduce the columns of each data set by only selecting the years and the crime description columns. We will eventually have to combine the two data sets together so it is necessary to include a column with the name of the states so it will be easier to differentiate each state in the plot.
+
+```{r}
+#| echo: false
+new_NYPD <- NYPD_data %>%
+  select(ARREST_DATE, OFNS_DESC)%>%
+  filter(ARREST_DATE > 2019) %>%
+  mutate(state = "New York")%>%
+  rename(year = ARREST_DATE, crime = OFNS_DESC)
+```
+
+```{r}
+#| echo: false
+new_LAPD <- LAPD_data %>%
+  select(DATE.OCC, Crm.Cd.Desc) %>%
+  filter(DATE.OCC < 2025) %>%
+  mutate(state = "Los Angeles") %>%
+  rename(year = DATE.OCC, crime = Crm.Cd.Desc)
+```
+
+```{r}
+#| echo: false
+state_crimes <- bind_rows(new_LAPD, new_NYPD) 
+state_crimes_perYear <- state_crimes %>%
+  group_by(year, state) %>%
+  summarise(count = n())
+```
+
+```{r}
+#| echo: false
+#| label: fig-crimerates
+#| fig-cap: State Crime rates per year
+ggplot(data = state_crimes_perYear, aes(x=year, y =count, color = state)) +
+  geom_line()
+```
+
+According to the graph in @fig-crimerates , The rates of crime in Los Angeles starts a steady decrease in 2022 and then rapidly decreases from 2023 to 2024. Meanwhile, New York increases through 2020 to 2024. Additionally, we can notice that Los Angeles has a higher crime count from 2020 to 2023. Does this mean that Los Angeles might have the most crime? We can investigate this further by looking at a side by side bar plot.
+
+#### Most crime
+
+We can determine which state has more crime by counting the total number of crimes reported in each state. Since both cities have a large population of people it is expected to have similar crimes numbers in each city.
+
+```{r}
+#| echo: false
+state_crimes_grouped <- state_crimes %>%
+  group_by(state)%>%
+  summarise(Total = n())
+```
+
+```{r}
+#| echo: false
+#| label: fig-crimestate
+#| fig-cap: Total crimes by state
+ggplot(data = state_crimes_grouped, aes(x= state, y=Total)) +
+  geom_bar(stat = "identity")
+```
+
+As we can see from the bar graph in @fig-crimestate, Los Angeles appears to have slightly more crime than New York.
+
+```{r}
+#| echo: false
+state_crimes_grouped
+```
+
+This table confirms that Los Angeles has 31,823 more reported crimes than New York.
+
+#### Conclusion
+
+After analyzing and comparing crime rates in both New York and Los Angeles, we have discovered several key conclusions. Theft and assault are among the most common crimes in both cities, indicating a higher need for prevention against those crimes. This project has also revealed that the city with the most reported crimes is Los Angeles as shown in @fig-crimestate. However, @fig-crimerates shows that Los Angeles has had a decreasing rate in crime over 2 years while New York crime levels has continue to rise over the past 4 years. We can also see this decreasing pattern in homicide rates in Los Angeles, as seen in @fig-homiciderate. In recent years, the homicide rates have almost halved the rates in the early 90's.
+
+#### Sources
+
+NYPD source -\> <https://catalog.data.gov/dataset/nypd-arrest-data-year-to-date>
+
+LAPD source -\> <https://catalog.data.gov/dataset/crime-data-from-2020-to-present>
+
+LA Homicide Source -\> <https://en.wikipedia.org/wiki/Crime_in_Los_Angeles>
+
+Basic bar plot with ggplot2 source -\> <https://r-graph-gallery.com/218-basic-barplots-with-ggplot2.html>
+
+```{r codeAppend, ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
